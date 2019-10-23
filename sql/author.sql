@@ -1,5 +1,7 @@
-<?php
-//this I write or modify
+drop table if exists articleTag;
+drop table if exists tag;
+drop table if exists article;
+drop table if exists author;
 
 create table author(
 	authorId binary(16) not null,
