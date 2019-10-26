@@ -278,8 +278,155 @@ public function setAuthorUsername(string $newAuthorUsername): void {
 	$this->authorUsername = $newAuthorUsername;
 }
 
-public function jsonSerialize() {
+	/**
+	 * inserts author into mysql
+	 * @param \PDO $pdo PDO connection object
+	 * @throws \PDOExceptionwhen mysql related errors occur
+	 * @throws \TypeError if $pdo is not a PDO connection object
+	 */
+
+	public  function insert(\PDO $pdo): void {
+		//creates query template
+		$query = "INSERT INTO author(authorId, authorActivationToken, authorAvatarUrl, authorEmail, authorHash, authorUsername) VALUES (:authorId, :authorActivationToken, :authorAvatarUrl, :authorEmail, :authorHash, :authorUsername)";
+		$statement = $pdo->prepare($query);
+		// this creates relationship between php state variables and pdo/mysql variables
+		$parameters = [
+			"authorId" => $this->authorId->getBytes(),
+			"authorAvatarUrl" => $this->authorAvatarUrl,
+			"authorEmail" => $this->authorEmail,
+			"authorHash" => $this->authorHash,
+			"authorUserName" => $this->authorUsername];
+		$statement->execute($parameters);
+	}
+
+	/**
+	 * deletes author from mysql database
+	 *
+	 * @param \PDO $pdo PDO connection object
+	 * @throws \PDOException when mysql related errors occur
+	 * @throws \TypeError if $pdo is not a PDO connection object
+	 */
+	public function delete(\PDO $pdo): void {
+		//creates query template
+		$query = "DELETE FROM author WHERE authorId = :authorID";
+		$statement = $pdo->prepare($query);
+
+		//creates relationship between php state variables and PDO/mysql variables
+		$parameters = ["authorID" => $this->authorId->getBytes()];
+		$statement->execute($parameters);
+	}
+
+	/**
+	 * update author in mysql database
+	 *
+	 * @param \PDO $pdo PDO connection object
+	 * @throws \PDOException when mysql related errors occur
+	 * @throws \TypeError if $pdo is not a PDO connection object
+	 */
+	public function  update(\PDO $pdo): void {
+		//create query template
+		$query = "UPDATE author SET authorId = :authorId, authorActivationToken = :authorActivationToken, authorAvatarUrl = :authorAvatarUrl, authorEmail = :authorEmail, authorHash = :authorHash, authorUsername = :authorUsername WHERE authorId = :authorId";
+		$statement = $pdo->prepare($query);
+		//creates relationship between php state variables and pdo/mysql variables
+		$parameters = [
+			"authorId" => $thisauthorId->getBytes(),
+			"authorActivationToken" => $this->authorActivationToken,
+			"authorAvatarUrl" => $this->authorAvatarUrl,
+			"authorEmail" => $this->authorEmail,
+			"authorHash" => $this->authorHash,
+			"authorUsername" => $this->authorUsername];
+		$statement->execute($parameters);
+	}
+
+	/**
+	 * function returns author username when querying by author Id
+	 *
+	 * @param \PDO $pdo PDO connection object
+	 * @param Uuid|string $authorId to search for
+	 * @return Author|null author found or null if not found
+	 * @throws \PDOException when mysql related errors occur
+	 * @throws \TypeError if $pdo is not a PDO connection object
+	 */
+	public function getAuthorUsernameByAuthorId(\PDO $pdo, $authorId) {
+		//sanitizes the authorId befor querying
+		try {
+				$authorId = self::validateUuid($authorId);
+		} catch(\InvalidArgumentException | \RangeException | \Exception | \TypeError $exception) {
+	}
+	//creates query template that SELECTs Author WHERE authorId is :authorId
+		$query = "SELECT authorId, authorActivationToken, authorAvatarUrl, authorEmail, authorHash, authorUsername FROM author WHERE authorId = :authorId";
+		$statement = $pdo->prepare($query);
+		//creates relationship between php authorId and PDO/mysql authorId
+		$parameters = ["authorId" => $authorId->getBytes()];
+		$statement->execute($parameters);
+		//grab authorUsername from mysql
+		try {
+				$author = null;
+				$statement->setFetchMode(\PDO::FETCH_ASSOC);
+				$row = $statement->fetch();
+				if($row !== false) {
+						$author = new Author($row["authorId"], $row["authorActivationToken"], $row["authorAvatarUrl"], $row["authorEmail"], $row["authorHash"], $row["authorUsername"]);
+
+				}
+		} catch(\Exception $exception) {
+			//if row couldent be converted, rethrow it
+			throw (new \PDOException($exception->getMessage(), 0, $exception));
+		};
+		return  ($author);
+
+}
+
+	/**
+	 * function returnes an array of authors containing the string in their username
+	 *
+	 * @param  \PDO $pdo PDO connection object
+	 * @param  Uuid|string $authorUsername to search for
+	 * @return \SplFixedArray of authors found
+	 * @throws \PDOException when mysql related errors occur
+	 * @throws \TypeError if $pdo is not a PDO connection object
+	 */
+public function getAuthorByAuthorUsername(\PDO $pdo, string $authorUsername): \SplFixedArray {
+			//sanitize authorUsername string
+			$authorUsername = trim($authorUsername);
+			$authorUsername = filter_var($authorUsername, FILTER_SANITIZE_STRING, FILTER_FLAG_NO_ENCODE_QUOTES);
+			if(empty($authorUsername) === true) {
+				throw (new \PDOException("content invalid fool"));
+			}
+			//escape any wildcards
+	$authorUsername = str_replace("_", "\\_", str_replace("%", "\\%", $authorUsername));
+	//create query templates that select authors from author where authorUsername contains %string%
+	$query = "SELECT authorId, authorActivationToken, authorAvatarUrl, authorEmail, authorHash, authorUsername FROM author WHERE authorUsername LIKE :authorUsername";
+	$statement = $pdo->prepare($query);
+	//creates relationship between mysql %string% query and placeholder
+	$authorUsername = "%authorUsername%";
+	$parameters = ["authorUsername" => $authorUsername];
+	//execute() function passes $parameters to prepare() 'd function and runs the $query with $parameters
+	$statement->execute($parameters);
+	//build and array of authors
+	$authors = new \SplFixedArray($statement->rowCount());
+	$statement->setFetchMode(\PDO::FETCH_ASSOC);
+	while(($row = $statement->fetch()) !== false) {
+		try {
+			$author = new Author($row["authorId"], $row["authorActivationToken"], $row["authorAvatarUrl"], $row["authorEmail"], $row["authorUsername"]);
+			$authors[$authors->key()] = $author;
+			$authors->next();
+		} catch(\Exception $exception) {
+			//if the row couldent be converted, rethrow it
+			throw (new \PDOException($exception->getMessage(), 0, $exception));
+		}
+	}
+return  ($authors);
+}
+
+	/**
+	 * formats the state variables for Json serializable
+	 *
+	 * @return array resulting state variables to serialize
+	 */
+public function jsonSerialize(): array {
+	//this collects all state variables
 		$fields = get_object_vars($this);
+		//turns Uuid into string
 		$fields["authorId"] = $this->authorId->toString();
 		unset($fields["authorHash"]);
 		return ($fields);
