@@ -373,7 +373,7 @@ public function setAuthorUsername(string $newAuthorUsername): void {
 			throw (new \PDOException($exception->getMessage(), 0, $exception));
 		};
 		return  ($author);
-//this is a test//
+//this is a test!//
 }
 
 	/**
